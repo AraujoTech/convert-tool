@@ -1,0 +1,71 @@
+service: converter-serverless
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: python3.9
+  stage: dev
+  region: us-west-2
+  profile: stackhouseit
+  memorySize: 512
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action: 
+            - "logs:CreateLogStream"
+            - "logs:TagResource"
+            - "logs:CreateLogGroup"
+            - "logs:PutLogEvents"
+          Resource: 
+            - "arn:aws:logs:us-east-1:829128755473:log-group:converter-app:*"
+
+
+# plugins:
+#   - serverless-python-requirements
+# custom:
+#   pythonRequirements:
+#     fileName: requirements.txt
+#   secrets: ${ssm:/aws/reference/secretsmanager/DeployBotSecrets}
+
+functions:
+  store-deployments:
+    name: deployBot-StoreDeployments
+    handler: store.store
+    environment:
+      DYNAMO_TABLE_NAME: ${self:custom.secrets.DYNAMO_TABLE_NAME}
+      REGION: ${opt:region, self:provider.region}
+      SLACK_URL: ${self:custom.secrets.SLACK_URL}
+      SLACK_TOKEN: ${self:custom.secrets.SLACK_TOKEN}
+      SLACK_CHANNEL_ID: ${self:custom.secrets.SLACK_CHANNEL_ID}
+      SLACK_BOT_NAME: ${self:custom.secrets.SLACK_BOT_NAME}
+      SLACK_WEBHOOK: ${self:custom.secrets.SLACK_WEBHOOK}
+      SLACK_PROD_WEBHOOK: ${self:custom.secrets.SLACK_PROD_WEBHOOK}
+    events:
+      - http: 
+          path: '/store'
+          method: POST
+  
+resources:
+  Resources:
+    deploymentHistory:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: commit_serverless_db
+        AttributeDefinitions:
+
+          - AttributeName: git_hash
+            AttributeType: S
+
+          - AttributeName: repository
+            AttributeType: S
+
+        KeySchema:
+
+          - AttributeName: git_hash
+            KeyType: HASH
+
+          - AttributeName: repository
+            KeyType: RANGE
+
+        BillingMode: PAY_PER_REQUEST
